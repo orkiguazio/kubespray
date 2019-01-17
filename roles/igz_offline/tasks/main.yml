@@ -1,0 +1,54 @@
+---
+- name: "init images_to_download variable"
+  set_fact:
+    images_to_save: ""
+  when:
+    - not skip_downloads|default(false)
+
+- name: "set images_to_download variable"
+  set_fact:
+    images_to_save: "{{ images_to_save }} {{ item.value.repo }}:{{ item.value.tag }}"
+  with_dict: "{{ downloads }}"
+  when:
+  - not skip_downloads|default(false)
+
+- name: "pull containers"
+  shell: "docker pull {{ item.value.repo }}:{{ item.value.tag }}"
+  with_dict: "{{ downloads }}"
+  when:
+  - not skip_downloads|default(false)
+
+- name: create cache directory
+  file:
+    path: "{{local_release_dir}}"
+    state: directory
+    recurse: yes
+    mode: 0777
+  when:
+  - not skip_downloads|default(false)
+
+- name: "init images cache name"
+  set_fact:
+    container_cache_name: "docker_images.tar.gz"
+
+- name: "save containers"
+  shell: "docker save {{ images_to_save }} | gzip > {{ local_release_dir }}/{{ container_cache_name }}"
+  when:
+  - not skip_downloads|default(false)
+
+- name: "delete containers"
+  shell: "docker rmi {{ images_to_save }}"
+  when:
+  - not skip_downloads|default(false)
+
+- name: copy cache
+  copy:
+    src: "{{release_cache_dir}}/"
+    dest: "{{local_release_dir}}"
+  when:
+  - skip_downloads|default(false)
+
+- name: load containers cache
+  shell: "docker load -i {{ local_release_dir }}/{{ container_cache_name }}"
+  when:
+  - skip_downloads|default(false)

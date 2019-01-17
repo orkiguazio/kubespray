@@ -16,6 +16,9 @@ nodes.any_builder_node {
     }
 
     def image = stage('build') {
+        withCredentials([string(credentialsId: 'sudo_password', variable: 'sudo_password')]) {
+            common.shell(['./prepare_offline_version.sh', env.sudo_password])
+        }
         return docker.build("kubespray:${env.BRANCH_NAME}")
     }
 

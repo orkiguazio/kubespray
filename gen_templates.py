@@ -46,7 +46,10 @@ class ClientNode(object):
 
 class ServerHost(object):
 
-    def __init__(self, mgmt_ip, data_ip, user, password, has_etcd, is_master):
+    def __init__(self, mgmt_ip, user, password, has_etcd, is_master, data_ip=None):
+        if data_ip is None:
+            data_ip = get_mlnx_ip_addr(mgmt_ip, user, password)
+
         self.mgmt_ip = mgmt_ip
         self.data_ip = data_ip
         self.user = user
@@ -63,8 +66,7 @@ class ServerHost(object):
         mgmt_ip = config['address']
         user = config['username']
         password = config['password']
-        data_ip = get_mlnx_ip_addr(mgmt_ip, user, password)
-        return cls(mgmt_ip, data_ip, user, password,
+        return cls(mgmt_ip, user, password,
                    has_etcd='kube-etcd' in roles, is_master='kube-master' in roles)
 
 
@@ -84,9 +86,15 @@ def _gen_templates(path, **kwargs):
 def get_servers(ips, user, password):
     masters_count = 3 if len(ips) >= 3 else 1
     for i, server in enumerate(ips):
-        mgmt_ip, data_ip = server.split(',')
+        server_ips = server.split(',')
+        try:
+            mgmt_ip, data_ip = server_ips
+        except ValueError:
+            mgmt_ip, = server_ips
+            data_ip = None
+
         is_master = i < masters_count
-        yield ServerHost(mgmt_ip, data_ip, user, password, has_etcd=is_master, is_master=is_master)
+        yield ServerHost(mgmt_ip, user, password, has_etcd=is_master, is_master=is_master, data_ip=data_ip)
 
 
 def from_naipi(data):
