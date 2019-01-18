@@ -3,5 +3,5 @@
   gather_facts: no
   roles:
     - { role: kubespray-defaults}
-    - { role: igz_offline }
     - { role: download }
+    - { role: igz_offline }

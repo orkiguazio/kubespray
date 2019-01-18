@@ -2,7 +2,6 @@
 local_release_dir: /tmp/releases
 
 google_containers: "gcr.io/google-containers"
-kube_version: "v1.12.3"
 helm_version: "v2.11.0"
 calico_version: "v3.1.3"
 
