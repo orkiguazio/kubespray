@@ -10,7 +10,7 @@ import jinja2
 import paramiko
 
 
-def get_mlnx_ip_addr(hostname=None, username=None, password=None):
+def get_interafce_ip_addr(hostname, username, password, interface):
     """
         SSH to a host and get its IP
     """
@@ -19,7 +19,8 @@ def get_mlnx_ip_addr(hostname=None, username=None, password=None):
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         # Connect to remote host
         ssh.connect(hostname=hostname, username=username, password=password, timeout=15)
-        _, stdout, _ = ssh.exec_command("/usr/sbin/ip -4 -o addr show dev bond0|awk '{print $4}'|cut -d '/' -f1")
+        cmd = "/usr/sbin/ip -4 -o addr show dev {}|awk '{{print $4}}'|cut -d '/' -f1".format(interface)
+        _, stdout, _ = ssh.exec_command(cmd)
         mlnx_ip = stdout.read().strip()
 
         # Validate it's an IP
@@ -46,14 +47,14 @@ class ClientNode(object):
 
 class ServerHost(object):
 
-    def __init__(self, mgmt_ip, user, password, has_etcd, is_master, data_ip=None):
-        if data_ip is None:
-            data_ip = get_mlnx_ip_addr(mgmt_ip, user, password)
+    def __init__(self, mgmt_ip, user, password, data_interface, has_etcd, is_master):
+        if data_interface is None:
+            data_interface = 'bond0'
 
         self.mgmt_ip = mgmt_ip
-        self.data_ip = data_ip
         self.user = user
         self.password = password
+        self.data_ip = get_interafce_ip_addr(mgmt_ip, user, password, data_interface)
         self.has_etcd = has_etcd
         self.is_master = is_master
 
@@ -66,7 +67,9 @@ class ServerHost(object):
         mgmt_ip = config['address']
         user = config['username']
         password = config['password']
-        return cls(mgmt_ip, user, password,
+        data_interface = config.get('dataplane-interface')
+
+        return cls(mgmt_ip, user, password, data_interface,
                    has_etcd='kube-etcd' in roles, is_master='kube-master' in roles)
 
 
@@ -86,15 +89,15 @@ def _gen_templates(path, **kwargs):
 def get_servers(ips, user, password):
     masters_count = 3 if len(ips) >= 3 else 1
     for i, server in enumerate(ips):
-        server_ips = server.split(',')
+        server_args = server.split(',')
         try:
-            mgmt_ip, data_ip = server_ips
+            mgmt_ip, data_interface = server_args
         except ValueError:
-            mgmt_ip, = server_ips
-            data_ip = None
+            mgmt_ip, = server_args
+            data_interface = None
 
         is_master = i < masters_count
-        yield ServerHost(mgmt_ip, user, password, has_etcd=is_master, is_master=is_master, data_ip=data_ip)
+        yield ServerHost(mgmt_ip, user, password, data_interface, has_etcd=is_master, is_master=is_master)
 
 
 def from_naipi(data):
