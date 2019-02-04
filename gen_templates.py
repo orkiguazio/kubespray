@@ -130,6 +130,9 @@ def main():
         servers = list(get_servers(args.servers, args.user, args.password))
         clients = [ClientNode(ip, args.user, args.password) for ip in args.clients]
 
+    if not servers:
+        clients = []
+
     cmd = ['python3', 'contrib/inventory_builder/inventory.py']
     cmd.extend(s.mgmt_ip for s in servers)
     subprocess.check_output(cmd, env={'CONFIG_FILE': 'inventory/igz/hosts.ini'})
