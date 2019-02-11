@@ -1,0 +1,4 @@
+- hosts: etcd:k8s-cluster:calico-rr
+  roles:
+    - { role: kubespray-defaults}
+    - { role: reset, tags: reset }
