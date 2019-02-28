@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-import sys
 import json
 import socket
+import shutil
 import logging
-import argparse
 import subprocess
 
 import jinja2
@@ -100,39 +99,8 @@ def get_servers(ips, user, password):
         yield ServerHost(mgmt_ip, user, password, data_interface, has_etcd=is_master, is_master=is_master)
 
 
-def from_naipi(data):
-    config = json.loads(data)['setup']
-    servers = (ServerHost.from_naipi(c) for c in config['clients'])
-    servers = [s for s in servers if s is not None]
-    clients = [ClientNode.from_naipi(c) for c in config['nodes']]
-    return servers, clients
-
-
-def _parse():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--server', dest='servers', action='append', default=[])
-    parser.add_argument('-c', '--client', dest='clients', action='append', default=[])
-    parser.add_argument('-u', '--user', default='iguazio')
-    parser.add_argument('-p', '--password', default='24tango')
-    parser.add_argument('-n', '--naipi-config')
-    return parser.parse_args()
-
-
-def main():
-    log_fmt = '%(asctime)s %(levelname)s: %(filename)s:%(lineno)d: %(message)s'
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_fmt)
-
-    args = _parse()
-
-    if args.naipi_config is not None:
-        servers, clients = from_naipi(args.naipi_config)
-    else:
-        servers = list(get_servers(args.servers, args.user, args.password))
-        clients = [ClientNode(ip, args.user, args.password) for ip in args.clients]
-
-    if not servers:
-        clients = []
-
+def gen(servers, clients):
+    shutil.copytree('inventory/sample/group_vars', 'inventory/igz/group_vars')
     cmd = ['python3', 'contrib/inventory_builder/inventory.py']
     cmd.extend(s.mgmt_ip for s in servers)
     subprocess.check_output(cmd, env={'CONFIG_FILE': 'inventory/igz/hosts.ini'})
@@ -141,5 +109,25 @@ def main():
     _gen_templates(path='inventory/igz/hosts.ini', servers=servers, clients=clients)
 
 
-if __name__ == '__main__':
-    main()
+def from_naipi(data):
+    config = json.loads(data)['setup']
+    servers = (ServerHost.from_naipi(c) for c in config['clients'])
+    servers = [s for s in servers if s is not None]
+    if servers:
+        clients = [ClientNode.from_naipi(c) for c in config['nodes']]
+    else:
+        clients = []
+
+    gen(servers, clients)
+
+
+def from_cli(servers, clients, user, password):
+    servers = list(get_servers(servers, user, password))
+    if servers:
+        clients = [ClientNode(ip, user, password) for ip in clients]
+    else:
+        clients = []
+
+    gen(servers, clients)
+
+
