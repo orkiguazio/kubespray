@@ -12,7 +12,7 @@ import subprocess
 import gen_templates
 
 
-def _run_ansible(playbooks_dir, playbook, become=False, skip_tags=(), tags=(), **kwargs):
+def _run_ansible(playbook, become=False, skip_tags=(), tags=(), **kwargs):
     playbook = '{}.yml'.format(playbook)
     extra_vars = json.dumps(kwargs)
     cmd = ['ansible-playbook', '-i', 'inventory/igz/hosts.ini', playbook, '--extra-vars', extra_vars]
@@ -26,20 +26,24 @@ def _run_ansible(playbooks_dir, playbook, become=False, skip_tags=(), tags=(), *
         cmd.append('--become')
 
     logging.info(cmd)
+    playbooks_dir = os.path.dirname(os.path.abspath(__file__))
     subprocess.check_call(cmd, cwd=playbooks_dir, stdout=sys.stdout, stderr=sys.stderr)
 
 
-def run(do_reset, servers_supp_ips):
-    playbooks_dir = os.path.dirname(os.path.abspath(__file__))
-    if do_reset:
-        _run_ansible(playbooks_dir, 'reset_igz', become=True, kube_proxy_mode='iptables')
+def do_reset(_):
+    _run_ansible('reset_igz', become=True, kube_proxy_mode='iptables')
 
-    _run_ansible(playbooks_dir, 'offline_cache', become=True, release_cache_dir='./releases', skip_downloads=True)
-    _run_ansible(playbooks_dir, 'cluster', become=True, kubectl_localhost=True,
+
+def run_install(_):
+    _run_ansible('offline_cache', become=True, release_cache_dir='./releases', skip_downloads=True)
+
+
+def run_config(servers_supp_ips):
+    _run_ansible('cluster', become=True, kubectl_localhost=True,
                  kubeconfig_localhost=True, deploy_container_engine=False, skip_downloads=True,
                  preinstall_selinux_state='disabled', kube_proxy_mode='iptables',
                  supplementary_addresses_in_ssl_keys=servers_supp_ips)
-    _run_ansible(playbooks_dir, 'clients')
+    _run_ansible('clients')
 
 
 def _k8s_node_ips(args):
@@ -62,8 +66,15 @@ def cli_parser():
     parser.add_argument('-s', '--server', dest='servers', type=_k8s_node_ips, action='append', default=[])
     parser.add_argument('-c', '--client', dest='clients', type=_validate_ip, action='append', default=[])
     parser.add_argument('-a', '--apiserver_vip', dest='apiserver_vip', type=json.loads, default=[])
-    parser.add_argument('-r', '--reset', action='store_true',
-                        help='do reset before deploy, delete restart docker, dont run from within k8s cluster')
+
+    sub_commands = {'install': run_install,
+                    'config': run_config,
+                    'reset': do_reset}
+    subparsers = parser.add_subparsers()
+    for name, func in sub_commands.iteritems():
+        sub_parser = subparsers.add_parser(name)
+        sub_parser.set_defaults(cmd=func)
+
     return parser.parse_args()
 
 
@@ -77,7 +88,9 @@ def main():
     servers_supp_ips = [supp_ip for _, _, supp_ip in args.servers]
     if args.apiserver_vip and 'ip_address' in args.apiserver_vip:
         servers_supp_ips.append(args.apiserver_vip['ip_address'])
-    run(args.reset, servers_supp_ips)
+
+    cmd = args['cmd']
+    cmd(servers_supp_ips)
 
 
 if __name__ == '__main__':
