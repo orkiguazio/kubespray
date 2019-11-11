@@ -38,7 +38,7 @@ def run(do_reset, servers_supp_ips):
     _run_ansible(playbooks_dir, 'cluster', become=True, kubectl_localhost=True,
                  kubeconfig_localhost=True, deploy_container_engine=False, skip_downloads=True,
                  preinstall_selinux_state='disabled', kube_proxy_mode='iptables',
-                 supplementary_addresses_in_ssl_keys=servers_supp_ips, kube_feature_gates=["KubeletPodResources=true"])
+                 supplementary_addresses_in_ssl_keys=servers_supp_ips)
     _run_ansible(playbooks_dir, 'clients')
 
 
