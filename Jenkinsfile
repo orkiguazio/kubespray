@@ -1,9 +1,17 @@
 @Library('pipelinex@development') _
 
-properties([
+def config = common.get_config()
+
+def props = [
     buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '30', numToKeepStr: '1000')),
     disableConcurrentBuilds()
-])
+]
+
+if (config.cron.get(env.BRANCH_NAME)) {
+    props.add(pipelineTriggers([cron(config.cron.get(env.BRANCH_NAME))]))
+}
+
+properties(props)
 
 
 timestamps {
